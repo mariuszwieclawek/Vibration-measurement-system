@@ -1,7 +1,7 @@
 #include "bluetooth.h"
 
 /* Create logging module for bluetooth*/
-LOG_MODULE_REGISTER(BLUETOOTH_CENTRAL);
+LOG_MODULE_REGISTER(BLUETOOTH);
 
 /* Create the semaphore for bluetooth */
 static K_SEM_DEFINE(ble_init_ok, 1, 1);
@@ -9,6 +9,9 @@ static K_SEM_DEFINE(ble_init_ok, 1, 1);
 /* Bluetooth device name and lenght of device name */
 #define DEVICE_NAME CONFIG_BT_DEVICE_NAME
 #define DEVICE_NAME_LEN (sizeof(DEVICE_NAME) - 1)
+
+/* Current connection struct */
+static struct bt_conn *current_conn;
 
 /* Bluetooth advertise data */
 static const struct bt_data ad[] = {
@@ -21,12 +24,10 @@ static const struct bt_data sd[] = {
     BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_SERV_ACC),
 };
 
-
 /* Callbacks declaration for characteristics event trigger */
 static ssize_t read_accelerometer_x_val_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);
 static ssize_t read_accelerometer_y_val_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);
 static ssize_t read_accelerometer_z_val_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);
-
 
 /* Declare custom service */
 BT_GATT_SERVICE_DEFINE(accelerometer_service,
@@ -50,19 +51,21 @@ BT_GATT_PRIMARY_SERVICE(BT_UUID_ACC_SERVICE),
 static ssize_t read_accelerometer_x_val_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset)
 {
 	LOG_INF("Read X-Axis value");
-	return bt_gatt_attr_read(conn, attr, buf, len, offset, &button_counter, sizeof(button_counter));
+	return bt_gatt_attr_read(conn, attr, buf, len, offset, &acc_meas_values.x_axis_val, sizeof(acc_meas_values.x_axis_val));
 }
 
 /* Callback for read characteristic event (Y-Axis value) */
 static ssize_t read_accelerometer_y_val_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset)
 {
 	LOG_INF("Read Y-Axis value");
+	return bt_gatt_attr_read(conn, attr, buf, len, offset, &acc_meas_values.y_axis_val, sizeof(acc_meas_values.y_axis_val));
 }
 
 /* Callback for read characteristic event (Z-Axis value) */
 static ssize_t read_accelerometer_z_val_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset)
 {
 	LOG_INF("Read Z-Axis value");
+	return bt_gatt_attr_read(conn, attr, buf, len, offset, &acc_meas_values.z_axis_val, sizeof(acc_meas_values.z_axis_val));
 }
 
 
@@ -103,14 +106,11 @@ static ssize_t read_accelerometer_z_val_cb(struct bt_conn *conn, const struct bt
 // }
 
 
-
 /* Connection callback */
 static void ble_connected(struct bt_conn *conn, uint8_t err) 
 {
 	struct bt_conn_info info;
 	char addr[BT_ADDR_LE_STR_LEN];
-
-	//BTConnection = conn;
 
 	if (err) {
 		LOG_ERR("Connection failed (err %u)\n", err);
@@ -118,23 +118,35 @@ static void ble_connected(struct bt_conn *conn, uint8_t err)
 	} else if (bt_conn_get_info(conn, &info)) {
 		LOG_ERR("Could not parse connection info\n");
 	} else {
+		/* Increment reference connection count */
+		current_conn = bt_conn_ref(conn);
+		/* Parse connection data */
 		bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 		LOG_INF(
-			"Connection established!		\n\
-			Connected to: %s					\n\
-			Role: %u							\n\
-			Connection interval: %u				\n\
-			Slave latency: %u					\n\
+			"Connection established!		\n\r\
+			Connected to: %s					\n\r\
+			Role: %u							\n\r\
+			Connection interval: %u				\n\r\
+			Slave latency: %u					\n\r\
 			Connection supervisory timeout: %u	\n",
 			addr, info.role, info.le.interval, info.le.latency, info.le.timeout);
 	}
-  //BLEConnected = true;
+}
+
+/* Disconnect callback */
+static void ble_disconnected(struct bt_conn *conn, uint8_t reason)
+{
+	LOG_INF("Disconnected (reason: %d)", reason);
+	if(current_conn) {
+		bt_conn_unref(current_conn);
+		current_conn = NULL;
+	}
 }
 
 
 /* Bluetooth connection callbacks for monitoring state of connection*/
 static struct bt_conn_cb conn_callbacks = {.connected = ble_connected,
-                                           //.disconnected = ble_disconnected,
+                                           .disconnected = ble_disconnected,
                                            .le_param_req = NULL,
                                            .le_param_updated = NULL};
 
@@ -145,28 +157,16 @@ static void ble_ready(int32_t err) {
 		LOG_ERR("BLE init failed with error code %d\n", err);
 		return;
 	}
-
+	/* Configure connection callbacks */
+	bt_conn_cb_register(&conn_callbacks);
 	/* Start advertising */
 	err = bt_le_adv_start(BT_LE_ADV_CONN, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
 	if (err) {
 		LOG_ERR("Advertising failed to start (err %d)\n", err);
 		return;
 	}
-
+	/* Give semaphore when ble is initialized */
 	k_sem_give(&ble_init_ok);
-
-
-
-	/* Configure connection callbacks */
-	bt_conn_cb_register(&conn_callbacks);
-	/* Initalize custom service */
-	// ble_service_init();
-	/* Start advertising */
-	// err = bt_le_adv_start(BT_LE_ADV_CONN, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
-	// if (err) {
-	// 	LOG_ERR("Advertising failed to start (err %d)\n", err);
-	// 	return;
-	// }
 }
 
 /* Function initialize bluetooth module */

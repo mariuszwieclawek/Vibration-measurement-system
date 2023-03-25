@@ -1,5 +1,5 @@
-#ifndef _BLUETOOTH_CENTRAL_H_
-#define _BLUETOOTH_CENTRAL_H_
+#ifndef _BLUETOOTH_H_
+#define _BLUETOOTH_H_
 
 #include <zephyr/bluetooth/bluetooth.h>
 #include <zephyr/bluetooth/hci.h>
@@ -9,6 +9,7 @@
 #include <zephyr/logging/log.h>
 
 #include "button.h"
+#include "acc.h"
 
 /** @brief UUID of the Accelerometer Service. **/
 #define BT_UUID_SERV_ACC \
@@ -34,5 +35,5 @@
 
 int bluetooth_init(void);
 
-#endif /* _BLUETOOTH_CENTRAL_H_ */
+#endif /* _BLUETOOTH_H_ */
 

@@ -11,6 +11,7 @@
 #include "led.h"
 #include "button.h"
 #include "bluetooth.h"
+#include "acc.h"
 
 /* 1000 msec = 1 sec */
 #define SLEEP_TIME_MS   2000
@@ -32,11 +33,20 @@ void main(void)
 	led_set_state(LED1, ACTIVE);
 
 	/* Bluetooth */
-	// int err = bluetooth_init();
-	// if(err){
-	// 	LOG_ERR("Bluetooth init failed");
-	// }
+	int err = bluetooth_init();
+	if(err){
+		LOG_ERR("Bluetooth init failed");
+	}
+
+	/* Aceelerometer */
+	acc_meas_values.x_axis_val = 23.67;
+	acc_meas_values.y_axis_val = 13.59;
+	acc_meas_values.z_axis_val = 9.31;
+
+
 	led_set_state(LED2, INACTIVE);
+
+
 
 	while (1) {
 		led_toggle(LED3);
