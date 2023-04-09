@@ -28,6 +28,7 @@ static const struct bt_data sd[] = {
 static ssize_t read_accelerometer_x_val_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);
 static ssize_t read_accelerometer_y_val_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);
 static ssize_t read_accelerometer_z_val_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr, void *buf, uint16_t len, uint16_t offset);
+static ssize_t write_pwm_val_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr, const void *buf, uint16_t len, uint16_t offset, uint8_t flags);
 
 /* Declare custom service */
 BT_GATT_SERVICE_DEFINE(accelerometer_service,
@@ -36,15 +37,21 @@ BT_GATT_PRIMARY_SERVICE(BT_UUID_ACC_SERVICE),
                     BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
                     BT_GATT_PERM_READ,
                     read_accelerometer_x_val_cb, NULL, NULL),
+		BT_GATT_CCC(NULL, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
 	BT_GATT_CHARACTERISTIC(BT_UUID_ACC_Y_VAL_CHRC,
                     BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
                     BT_GATT_PERM_READ,
                     read_accelerometer_y_val_cb, NULL, NULL),
+		BT_GATT_CCC(NULL, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
 	BT_GATT_CHARACTERISTIC(BT_UUID_ACC_Z_VAL_CHRC,
                     BT_GATT_CHRC_READ | BT_GATT_CHRC_NOTIFY,
                     BT_GATT_PERM_READ,
                     read_accelerometer_z_val_cb, NULL, NULL),
-    //BT_GATT_CCC(button_chrc_ccc_cfg_changed, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
+    	BT_GATT_CCC(NULL, BT_GATT_PERM_READ | BT_GATT_PERM_WRITE),
+	BT_GATT_CHARACTERISTIC(BT_UUID_ACC_PWM_VAL_CHRC,
+			       BT_GATT_CHRC_WRITE,
+			       BT_GATT_PERM_WRITE,
+			       NULL, write_pwm_val_cb, NULL),
 );
 
 /* Callback for read characteristic event (X-Axis value) */
@@ -68,43 +75,80 @@ static ssize_t read_accelerometer_z_val_cb(struct bt_conn *conn, const struct bt
 	return bt_gatt_attr_read(conn, attr, buf, len, offset, &acc_meas_values.z_axis_val, sizeof(acc_meas_values.z_axis_val));
 }
 
+static ssize_t write_pwm_val_cb(struct bt_conn *conn, const struct bt_gatt_attr *attr, const void *buf, uint16_t len, uint16_t offset, uint8_t flags)
+{
+	LOG_DBG("Attribute write, handle: %u, conn: %p", attr->handle,
+		(void *)conn);
+
+	if (len != 1U) {
+		LOG_DBG("Write led: Incorrect data length");
+		return BT_GATT_ERR(BT_ATT_ERR_INVALID_ATTRIBUTE_LEN);
+	}
+
+	if (offset != 0) {
+		LOG_DBG("Write led: Incorrect data offset");
+		return BT_GATT_ERR(BT_ATT_ERR_INVALID_OFFSET);
+	}
+
+	//TO DO
+	uint8_t val = *((uint8_t *)buf);
+	LOG_INF("Write PWM value: %d", val);
+
+	return len;
+}
 
 
-// static void device_found(const bt_addr_le_t *addr, int8_t rssi, uint8_t type, struct net_buf_simple *ad)
-// {
-// 	char dev[BT_ADDR_LE_STR_LEN];
-// 	struct bt_conn *conn;
-// 	int err;
+static void sent_notif_cb(struct bt_conn *conn, void *user_data)
+{
+	ARG_UNUSED(user_data);
+    LOG_INF("Notification sent on connection %p", (void *)conn);
+}
 
-// 	bt_addr_le_to_str(addr, dev, sizeof(dev));
-// 	LOG_INF("[DEVICE]: %s, AD evt type %u, AD data len %u, RSSI %i\n", dev, type, ad->len, rssi);
+int bluetooth_send_acc_val_notif(uint8_t value, uint16_t length, char_choice sel)
+{
+    int err = 0;
+	/* Attribute table: 0 = Service, 1 = Primary service, 2 = X_VAL, 3 = CCC, 4 = Y_VAL, 5 = CCC, 6 = Z_VAL, 7 = CCC, 8 = PWM_VAL*/
+	const struct bt_gatt_attr *attr;
+    struct bt_gatt_notify_params params;
+	params.data = &value;
+	params.len = length;
+	params.func = sent_notif_cb;
+	
+	switch (sel)
+	{
+	case ACC_X_VALUE_CHAR:
+		attr = &accelerometer_service.attrs[2];
+		params.uuid = BT_UUID_ACC_X_VAL_CHRC;
+		params.attr = attr;
+		break;
+	case ACC_Y_VALUE_CHAR:
+		attr = &accelerometer_service.attrs[5];
+		params.uuid = BT_UUID_ACC_Y_VAL_CHRC;
+		params.attr = attr;
+		break;
+	case ACC_Z_VALUE_CHAR:
+		attr = &accelerometer_service.attrs[7];
+		params.uuid = BT_UUID_ACC_Z_VAL_CHRC;
+		params.attr = attr;
+		break;
+	default:
+		LOG_ERR("Wrong char selected: %d", sel);
+		return -1;
+	}
 
-// 	/* We're only interested in connectable events */
-// 	if (type != BT_GAP_ADV_TYPE_ADV_IND &&
-// 	    type != BT_GAP_ADV_TYPE_ADV_DIRECT_IND) {
-// 		return;
-// 	}
-
-// 	/* connect only to devices in close proximity */
-// 	if (rssi < -70) {
-// 		return;
-// 	}
-
-// 	err = bt_le_scan_stop();
-// 	if (err) {
-// 		LOG_ERR("%s: Stop LE scan failed (err %d)\n", __func__, err);
-// 		return;
-// 	}
-
-// 	err = bt_conn_le_create(addr, BT_CONN_LE_CREATE_CONN, BT_LE_CONN_PARAM_DEFAULT, &conn);
-// 	if (err) {
-// 		LOG_ERR("%s: Create conn failed (err %d)\n", __func__, err);
-// 		start_scan_func();
-// 	} else {
-// 		bt_conn_unref(conn);
-// 	}
-// }
-
+	/* Check whether notifications are enabled or not */
+  	if (bt_gatt_is_subscribed(current_conn, attr, BT_GATT_CCC_NOTIFY)) {
+		/* Send the notification */
+		err = bt_gatt_notify_cb(current_conn, &params);
+		if(err < 0){
+			LOG_ERR("Error, unable to send notification\n");
+		}
+	} 
+	else {
+		LOG_WRN("Notification not enabled on the selected attribute\n");
+	}
+    return err;
+}
 
 /* Connection callback */
 static void ble_connected(struct bt_conn *conn, uint8_t err) 
@@ -118,6 +162,8 @@ static void ble_connected(struct bt_conn *conn, uint8_t err)
 	} else if (bt_conn_get_info(conn, &info)) {
 		LOG_ERR("Could not parse connection info\n");
 	} else {
+		/* Active LED1 */
+		led_set_state(LED1, ACTIVE);
 		/* Increment reference connection count */
 		current_conn = bt_conn_ref(conn);
 		/* Parse connection data */
@@ -141,6 +187,8 @@ static void ble_disconnected(struct bt_conn *conn, uint8_t reason)
 		bt_conn_unref(current_conn);
 		current_conn = NULL;
 	}
+	/* Inactive LED1 */
+	led_set_state(LED1, INACTIVE);
 }
 
 
@@ -190,15 +238,3 @@ int bluetooth_init(void)
 	}
 	return err;
 }
-
-
-/* Function start scanning  */
-// void bluetooth_start_scan(void)
-// {
-// 	int err;
-// 	err = bt_le_scan_start(BT_LE_SCAN_PASSIVE, device_found);
-// 	if (err) {
-// 		LOG_ERR("Scanning failed to start (err %d)\n", err);
-// 	}
-// 	LOG_INF("Scanning successfully started\n");
-// }

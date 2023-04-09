@@ -14,7 +14,7 @@
 #include "acc.h"
 
 /* 1000 msec = 1 sec */
-#define SLEEP_TIME_MS   2000
+#define SLEEP_TIME_MS   3000
 
 /* Name of logging module for this file */
 LOG_MODULE_REGISTER(MAIN);
@@ -30,7 +30,6 @@ void main(void)
 	/* Button */
 	button_init_all_switches();
 	button_init_interrupts_for_all_switches();
-	led_set_state(LED1, ACTIVE);
 
 	/* Bluetooth */
 	int err = bluetooth_init();
@@ -39,18 +38,34 @@ void main(void)
 	}
 
 	/* Aceelerometer */
-	acc_meas_values.x_axis_val = 23.67;
-	acc_meas_values.y_axis_val = 13.59;
-	acc_meas_values.z_axis_val = 9.31;
+	// acc_meas_values.x_axis_val = 1;
+	// acc_meas_values.y_axis_val = 2;
+	// acc_meas_values.z_axis_val = 3;
+	int x = 0;
+	int y = 10;
+	int z = 20;
 
-
-	led_set_state(LED2, INACTIVE);
-
-
-
+	/* Infinite loop */
 	while (1) {
 		led_toggle(LED3);
 		k_msleep(SLEEP_TIME_MS);
-		led_toggle(LED2);
+		err = bluetooth_send_acc_val_notif(x, 1, ACC_X_VALUE_CHAR);
+		if(err){
+			LOG_ERR("Notification error:%d", ACC_X_VALUE_CHAR);
+		}
+
+		err = bluetooth_send_acc_val_notif(y, 1, ACC_Y_VALUE_CHAR);
+		if(err){
+			LOG_ERR("Notification error:%d", ACC_Y_VALUE_CHAR);
+		}
+
+		err = bluetooth_send_acc_val_notif(z, 1, ACC_Z_VALUE_CHAR);
+		if(err){
+			LOG_ERR("Notification error:%d", ACC_Z_VALUE_CHAR);
+		}
+
+		x++;
+		y++;
+		z++;
 	}
 }
