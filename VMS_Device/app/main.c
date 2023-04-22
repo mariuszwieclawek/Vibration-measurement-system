@@ -12,6 +12,7 @@
 #include "button.h"
 #include "bluetooth.h"
 #include "acc.h"
+#include "pwm.h"
 
 /* Name of logging module for this file */
 LOG_MODULE_REGISTER(MAIN);

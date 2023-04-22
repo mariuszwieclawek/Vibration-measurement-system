@@ -16,11 +16,13 @@ target_include_directories(app PRIVATE app/bluetooth/inc)
 target_include_directories(app PRIVATE app/led/inc)
 target_include_directories(app PRIVATE app/button/inc)
 target_include_directories(app PRIVATE app/accelerometer/inc)
+target_include_directories(app PRIVATE app/pwm/inc)
 
 target_sources(app PRIVATE app/main.c)
 target_sources(app PRIVATE app/bluetooth/src/bluetooth.c)
 target_sources(app PRIVATE app/led/src/led.c)
 target_sources(app PRIVATE app/button/src/button.c)
 target_sources(app PRIVATE app/accelerometer/src/acc.c)
+target_sources(app PRIVATE app/pwm/src/pwm.c)
 
 zephyr_library_include_directories(${CMAKE_CURRENT_SOURCE_DIR})
