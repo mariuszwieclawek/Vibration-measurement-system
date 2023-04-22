@@ -12,6 +12,7 @@
 #include "button.h"
 #include "bluetooth.h"
 #include "acc.h"
+#include "pwm.h"
 
 /* 1000 msec = 1 sec */
 #define SLEEP_TIME_MS   3000
